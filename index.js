@@ -50,12 +50,12 @@ async function handleGameDetailsCommand(interaction, gameName) {
     }
     const data = await response.json();
 
-    console.log(data); // Log the entire response for inspection
+    console.log(data); // for debugging purposes
 
     const appData = data[gameName];
     if (appData.success) {
       const gameInfo = appData.data;
-      console.log(gameInfo); // Log gameInfo for debugging
+      console.log(gameInfo); // for debugging purposes
 
       const embed = new MessageEmbed()
         .setTitle(gameInfo.name)
@@ -66,7 +66,6 @@ async function handleGameDetailsCommand(interaction, gameName) {
           gameInfo.genres.map((genre) => genre.description).join(", "),
           true
         );
-      // ... rest of your embed code
 
       interaction.reply({ embeds: [embed] });
     } else {
