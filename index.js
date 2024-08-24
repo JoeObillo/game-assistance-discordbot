@@ -1,10 +1,5 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 require("dotenv").config();
-
-// import Discord, { GatewayIntentBits } from "discord.js";
-// import dotenv from "dotenv";
-
-// dotenv.config();
 
 const PREFIX = "s!";
 const GAME_API =
@@ -23,57 +18,118 @@ function handlePingCommand(interaction) {
   interaction.reply(`Ready to stream? Hi [will edit this later]`);
 }
 
-// get a random game
 async function handleGameCommand(interaction) {
   const list = await fetch(GAME_API);
-  const game = await list.json();
+  const gameData = await list.json();
 
-  // gamelist
-  const games = game.applist.apps;
-  const randomIndex = Math.floor(Math.random() * games.length);
-  const randomGame = games[randomIndex];
+  // get all games
+  const games = gameData.applist.apps;
 
-  // access game name
-  const gameName = randomGame.name;
+  // create an empty array to store random games
+  const randomGames = [];
 
-  interaction.reply(`Here's a random game: ${gameName}`);
+  // loop 5 times to get 5 random games
+  for (let i = 0; i < 5; i++) {
+    const randomIndex = Math.floor(Math.random() * games.length);
+    const randomGame = games[randomIndex];
+    randomGames.push(randomGame);
+  }
+
+  // build the message string
+  let message = "Here are 5 random games:\n";
+  for (const game of randomGames) {
+    message += `- ${game.name}\n`;
+  }
+
+  interaction.reply(message);
 }
 
 // give game details
 async function handleGameDetailsCommand(interaction, gameName) {
-  const url = `http://api.steampowered.com/appdetails?appids=${gameName}&key=${STEAM_API_KEY}&format=json`;
-
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+    // get all games list
+    const response = await fetch(GAME_API);
+    const gameList = await response.json();
+    const games = gameList.applist.apps;
+
+    // find game by name (or other criteria)
+    let foundGame = null;
+    for (const game of games) {
+      if (game.name.toLowerCase().includes(gameName.toLowerCase())) {
+        // Case-insensitive search
+        foundGame = game;
+        break;
+      }
     }
-    const data = await response.json();
 
-    console.log(data); // for debugging purposes
+    // check if game was found
+    if (foundGame) {
+      const appId = foundGame.appid;
 
-    const appData = data[gameName];
-    if (appData.success) {
-      const gameInfo = appData.data;
-      console.log(gameInfo); // for debugging purposes
+      // construct correct URL with app ID
+      const encodedName = encodeURIComponent(gameName);
+      const url = `https://store.steampowered.com/api/appdetails?appids=${appId}`;
 
-      const embed = new MessageEmbed()
-        .setTitle(gameInfo.name)
-        .setThumbnail(gameInfo.header_image)
-        .addField("Release Date:", gameInfo.release_date.date, true)
-        .addField(
-          "Genres:",
-          gameInfo.genres.map((genre) => genre.description).join(", "),
-          true
+      console.log(detailsData[appId]);
+
+      // fetch details using the app ID
+      const detailsResponse = await fetch(url);
+      if (!detailsResponse.ok) {
+        throw new Error(
+          `API request failed with status ${detailsResponse.status}`
         );
+      }
 
-      interaction.reply({ embeds: [embed] });
+      const detailsData = await detailsResponse.json();
+      const gameData = detailsData[appId]?.data; // for optional..?
+
+      // create and send the embed message with game details
+      const embed = new EmbedBuilder()
+        .setColor("#8A9A5B")
+        .setTitle("Game Details")
+        .setDescription(`Details about ${gameName}`)
+        .addFields(
+          {
+            name: "Developers",
+            value: gameData.developers?.join(", "),
+            inline: true,
+          },
+          {
+            name: "Publishers",
+            value: gameData.publishers.join(", "),
+            inline: true,
+          },
+          {
+            name: "Platforms",
+            value: Object.keys(gameData.platforms).join(", "),
+            inline: true,
+          },
+          {
+            name: "Genres",
+            value: gameData.genres.map((genre) => genre.description).join(", "),
+            inline: false,
+          },
+          {
+            name: "Release Date",
+            value: gameData.release_date.date,
+            inline: true,
+          }
+        )
+        .setImage(gameData.screenshots?.[0]?.path_thumbnail) // Using the first screenshot | img looks idk.. (will try to fix)
+        .setFooter({
+          text: "Data from Steam",
+          iconURL: "https://steamcdn-a.akamaihd.net/apps/0/0/0/l/steamlogo.png",
+        });
+
+      console.log(gameData, gameName);
+
+      await interaction.reply({ embeds: [embed] });
     } else {
-      interaction.reply(`Game details not found for: ${gameName}`);
+      await interaction.reply(`Game not found with the name: ${gameName}`);
     }
   } catch (error) {
     console.error("Error:", error);
-    interaction.reply("An error occurred while fetching game details.");
+    await interaction.reply("An error occurred while fetching game details.");
   }
 }
 
@@ -91,10 +147,8 @@ client.on("messageCreate", (message) => {
     handleGameCommand(message);
   }
 
-  // still in progress
   if (command.startsWith("gameDetails")) {
     const gameName = command.substring("gameDetails ".length);
-    console.log("3");
     handleGameDetailsCommand(message, gameName);
   }
 });
