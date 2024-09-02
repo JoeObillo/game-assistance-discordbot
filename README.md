@@ -7,7 +7,7 @@ Added functions:
 
 
 Functions that are currently being made:
-1. s!plan | a command that streamers can use to set an alarm regarding when they want to stream
+1. s!poll | friends can use poll to choose what game they want to play
 
 Planning:
-1. s!poll | friends can use poll to choose what game they want to play
+1. s!reviews | a command where players can get reviews of a game
