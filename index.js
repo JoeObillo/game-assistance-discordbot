@@ -1,9 +1,4 @@
-const {
-  Client,
-  GatewayIntentBits,
-  EmbedBuilder,
-  ReactionCollector,
-} = require("discord.js");
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 require("dotenv").config();
 
 const PREFIX = "s!";
@@ -21,7 +16,9 @@ const client = new Client({
 
 // to test if it's functioning PING!
 function handlePingCommand(interaction) {
-  interaction.reply(`Time to game!`);
+  interaction.reply(
+    `Game Assistant here! Ready to deliver a list of variety of games!`
+  );
 }
 
 // give game details
@@ -151,68 +148,75 @@ async function handleGameCommand(interaction) {
   interaction.reply(message);
 }
 
-async function handlePollCommand(message) {
-  // Check if message starts with prefix (e.g., `!poll`)
-  if (!message.content.startsWith("!poll")) return;
+// display your own info
+async function handleUserInfoCommand(message) {
+  const { author } = message;
+  const userInfo = new EmbedBuilder()
+    .setColor("#8A9A5B")
+    .setTitle("User Information")
+    .setDescription(`Here is some information about ${author.username}`)
+    .addFields(
+      { name: "Username", value: author.username, inline: true },
+      { name: "Tag", value: author.tag, inline: true },
+      { name: "ID", value: author.id, inline: true },
+      {
+        name: "Created At",
+        value: author.createdAt.toDateString(),
+        inline: true,
+      }
+    )
+    .setThumbnail(author.displayAvatarURL())
+    .setFooter({
+      text: "User Info",
+      iconURL: author.displayAvatarURL(),
+    });
 
-  const content = message.content.slice("!poll".length).trim(); // Remove prefix and trim
+  message.reply({ embeds: [userInfo] });
+}
 
-  // Input validation (optional)
-  if (content.length === 0) {
-    return message.channel.send(
-      "Please provide a question and at least two choices (separated by commas)."
+async function handlePollCommand(message, args) {
+  // ensure there are at least 2 arguments (question and one option)
+  if (args.length < 2) {
+    return message.reply(
+      "Please provide a question and at least one option for the poll."
     );
   }
 
-  const [question, ...choices] = content.split(/,\s*/); // Split comma-separated choices, handling extra spaces
+  // extract the question and options
+  const question = args.shift(); // remove the first item (question)
+  const options = args; // remaining items are options
 
-  if (choices.length < 2) {
-    return message.channel.send("Please provide at least two choices.");
-  }
+  // check for leading spaces before options
+  const trimmedOptions = options.map((option) => option.trim());
 
-  // Create embed with question and choices
-  const embed = new EmbedBuilder()
-    .setColor("#0099ff")
-    .setTitle(question)
-    .setFooter({ text: "React to vote!" });
+  console.log(trimmedOptions);
 
-  for (let i = 0; i < choices.length; i++) {
-    const emoji = String.fromCharCode(65 + i); // Use letters (A, B, C...) as emojis
-    embed.addField(`${emoji}`, choices[i], true); // Inline fields for readability
-  }
+  // create the poll embed
+  const pollEmbed = new EmbedBuilder()
+    .setColor("#8A9A5B")
+    .setTitle("Poll")
+    .setDescription(question)
+    .addFields(
+      trimmedOptions.map((option, index) => ({
+        // Use trimmed options
+        name: `${index + 1}. ${option}`,
+        value: "\u200B",
+        inline: true,
+      }))
+    )
+    .setFooter({ text: "React with the corresponding number to vote!" });
 
   try {
-    const sentMessage = await message.channel.send({ embeds: [embed] });
+    // send the embed message
+    const pollMessage = await message.reply({ embeds: [pollEmbed] });
 
-    // Add reactions to message for each choice
-    for (let i = 0; i < choices.length; i++) {
-      const emoji = String.fromCharCode(65 + i);
-      await sentMessage.react(emoji);
+    // add reactions for the options
+    for (let i = 1; i <= options.length; i++) {
+      await pollMessage.react(`${i}️⃣`);
     }
-
-    // Collect reactions and update results
-    const collector = sentMessage.createReactionCollector({
-      filter: (reaction, user) => user.id !== message.client.user.id, // Ignore bot's reactions
-    });
-
-    collector.on("collect", async (reaction, user) => {
-      const emoji = reaction.emoji.name;
-      const choiceIndex = emoji.charCodeAt(0) - 65; // Convert emoji (A, B, C...) to index
-
-      // Update embed with vote count
-      const voteCount = reaction.count - 1; // Exclude bot's reaction
-      embed.fields[
-        choiceIndex
-      ].value = `${choices[choiceIndex]} (${voteCount} votes)`;
-      await sentMessage.edit({ embeds: [embed] });
-    });
-
-    collector.on("end", async () => {
-      console.log("Poll collection ended.");
-    });
   } catch (error) {
     console.error("Error creating poll:", error);
-    return message.channel.send("An error occurred while creating the poll.");
+    message.reply("An error occurred while creating the poll.");
   }
 }
 
@@ -221,6 +225,7 @@ client.on("messageCreate", (message) => {
   if (!message.content.startsWith(PREFIX)) return;
 
   const command = message.content.substring(PREFIX.length);
+  const args = command.split(/ +/);
 
   if (command === "start") {
     handlePingCommand(message);
@@ -235,8 +240,18 @@ client.on("messageCreate", (message) => {
     handleGameDetailsCommand(message, gameName);
   }
 
-  if (command.startsWith("poll")) {
-    handlePollCommand(message);
+  if (command.startsWith("userInfo")) {
+    handleUserInfoCommand(message);
+  }
+
+  if (args[0] === "poll") {
+    const pollArgs = command.slice(PREFIX.length + args[0].length).trim();
+    [question, ...options] = pollArgs
+      .split(/"/) // Split on quotes
+      .map((arg) => arg.replace()); // Remove remaining quotes
+    const regex = /\/([^/]+)\//g; // Matches quoted or unquoted words
+    options = pollArgs.match(regex).map((arg) => arg.replace(/\/+/g, ""));
+    handlePollCommand(message, [question, ...options]);
   }
 });
 
